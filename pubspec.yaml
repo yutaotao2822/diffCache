@@ -1,7 +1,7 @@
 name: diff_cache
 description: "A new Flutter project."
 version: 0.0.1
-homepage:
+homepage: git@github.com:yutaotao2822/diffCache.git
 
 environment:
   sdk: '>=3.3.1 <4.0.0'

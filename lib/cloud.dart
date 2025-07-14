@@ -19,9 +19,9 @@ class DC {
 
   DC._internal();
 
+  final dfKey = "DC_DiffCache_yt";
+
   ///
-  final FileVerifyApi _verApi = FileVerifyApi();
-  final DownloadApi downApi = DownloadApi();
   String savePath = "";
 
   //初始化
@@ -51,7 +51,7 @@ class DC {
   }
 
   List<String> _updateList() {
-    String? key = mmkv.getString("DC_DiffCache_yt");
+    String? key = mmkv.getString(dfKey);
     if (key == null || key.isEmpty) return [];
     List<String> keys = key.split("||");
     keys.removeLast();
@@ -60,15 +60,14 @@ class DC {
 
   Future<void> _dealUpdateSingle(String name,
       {required Function(List<String> success, List<String> fail, List<String> jump) finish, bool must = false}) async {
-    String tag = await _verApi.verify(name.dcUrl);
+    String tag = await FileVerifyApi().verify(name.dcUrl);
     if (must || tag != name.dcTag) {
-      downApi
+      DownloadApi()
           .setUrl(name.dcUrl ?? "")
           .setSavePath("$savePath${name.dcFile}")
           .downListen((now, total) {})
           .successListen((savePath, content) async {
         name.dcTagSet(tag);
-        print("savePath:$savePath");
         finish.call([name], [], []);
       }).failListen((fail) {
         finish.call([], [fail], []);
@@ -88,32 +87,48 @@ class DC {
     List<String> successTag = [];
     List<String> jumpTag = [];
 
-    for (String item in updList) {
-      if (!item.dcUrl.isNullOrEmpty) {
-        String tag = await _verApi.verify(item.dcUrl);
-        if (must || tag != item.dcTag) {
-          downApi
-              .setUrl(item.dcUrl ?? "")
-              .setSavePath("$savePath${item.dcFile}")
-              .downListen((now, total) {})
-              .successListen((savePath, content) async {
-            item.dcTagSet(tag);
-            cnt++;
-            successTag.add(item);
-            if (cnt == updList.length) finish.call(successTag, failTag, jumpTag);
-          }).failListen((fail) {
-            cnt++;
-            failTag.add(item);
-            if (cnt == updList.length) finish.call(successTag, failTag, jumpTag);
-          }).request();
-        } else {
-          cnt++;
-          jumpTag.add(item);
-          if (cnt == updList.length) finish.call(successTag, failTag, jumpTag);
-        }
+    print("updList:$updList");
+
+    updList.forEach((item) async {
+      if (item.dcUrl.isNullOrEmpty) return;
+      String tag = await FileVerifyApi().verify(item.dcUrl);
+      if (must || tag != item.dcTag) {
+        _download(
+            name: item,
+            url: item.dcUrl ?? "",
+            filePath: "$savePath${item.dcFile}",
+            success: (name) {
+              name.dcTagSet(tag);
+              cnt++;
+              successTag.add(name);
+              if (cnt == updList.length) finish.call(successTag, failTag, jumpTag);
+            },
+            fail: (name) {
+              cnt++;
+              failTag.add(name);
+              if (cnt == updList.length) finish.call(successTag, failTag, jumpTag);
+            });
+      } else {
+        cnt++;
+        jumpTag.add(item);
+        if (cnt == updList.length) finish.call(successTag, failTag, jumpTag);
       }
-    }
+    });
   }
+
+  void _download(
+          {required String name,
+          required String url,
+          required String filePath,
+          required Function(String name) success,
+          required Function(String name) fail}) =>
+      DownloadApi()
+          .setUrl(url)
+          .setSavePath(filePath)
+          .downListen((now, total) {})
+          .successListen((savePath, content) async => success.call(name))
+          .failListen((f) => fail.call(name))
+          .request();
 
   Future<String> read(String name) async => await File("$savePath${name.dcFile}").readAsString();
 
@@ -121,21 +136,32 @@ class DC {
   Future<void> add(String name, String url) async {
     mmkv.setString("${name}_url", url);
     mmkv.setString("${name}_file", name);
-    String pp = mmkv.getString("DC_DiffCache_yt") ?? "";
-    if (!pp.contains(name)) mmkv.setString("DC_DiffCache_yt", "$pp$name||");
-    print(mmkv.getString("DC_DiffCache_yt"));
+    String pp = mmkv.getString(dfKey) ?? "";
+    if (!pp.contains(name)) mmkv.setString(dfKey, "$pp$name||");
   }
 
   //移除缓存文件
   void remove(String name) async {
-    await File("$savePath${name.dcFile}").delete();
+    try {
+      if (!name.dcFile.isNullOrEmpty) await File("$savePath${name.dcFile}").delete();
+    } catch (e) {
+      print("$e");
+    }
+    String pp = mmkv.getString(dfKey) ?? "";
+    if (pp.contains(name)) pp = pp.replaceAll("$name||", "");
+    mmkv.setString(dfKey, pp);
     name.dcDel;
   }
 
   void clear() async {
     var list = _updateList();
+    mmkv.remove(dfKey);
     for (var item in list) {
-      await File("$savePath${item.dcFile}").delete();
+      try {
+        if (!item.dcFile.isNullOrEmpty) await File("$savePath${item.dcFile}").delete();
+      } catch (e) {
+        print("$e");
+      }
       item.dcDel;
     }
   }

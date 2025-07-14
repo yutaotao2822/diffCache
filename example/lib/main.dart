@@ -40,6 +40,9 @@ class _MyAppState extends State<MyApp> {
                 ElevatedButton(onPressed: tapMustEvt, child: const Text("UpdateMust")),
                 ElevatedButton(onPressed: tapReadDictionary, child: const Text("Read Dictionary")),
                 ElevatedButton(onPressed: tapReadChart, child: const Text("Read Chart")),
+                ElevatedButton(onPressed: tapDelDictionary, child: const Text("Delete Dictionary")),
+                ElevatedButton(onPressed: tapDelChart, child: const Text("Delete Chart")),
+                ElevatedButton(onPressed: taoClear, child: const Text("Clear")),
               ])));
 
   String dictionaryUrl = "http://1.95.128.88/app/config/app_dictionary.json";
@@ -70,4 +73,10 @@ class _MyAppState extends State<MyApp> {
 
   void _log(List<String> success, List<String> fail, List<String> jump) => print(
       "——————————————————\n更新成功:${success.toString()}\n更新失败：${fail.toString()}\n跳过更新：${jump.toString()}\n——————————————————");
+
+  void tapDelDictionary() => dc.remove("dc_dictionary");
+
+  void tapDelChart() => dc.remove("dc_chart");
+
+  void taoClear() => dc.clear();
 }
